@@ -6,6 +6,10 @@
 		regulator-boot-on;
 	};
 
+	lsm6ds3tr_c_en_label: lsm6ds3tr-c-en {
+        regulator-always-on;
+    };
+
 	leds {
         compatible = "gpio-leds";
 
@@ -34,4 +38,11 @@
 
 dmic_dev: &pdm0 {
 	status = "okay";
+};
+
+&i2c0 {
+    lsm6ds3tr_c_dev: lsm6ds3tr-c@6a {
+        wakeup-source;
+        irq-gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+    };
 };

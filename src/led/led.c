@@ -128,5 +128,6 @@ void led_init(void)
 
 void led_set_mode(led_mode_t mode)
 {
+    leds_off();
     current_mode = mode;
 }
