@@ -23,7 +23,7 @@
 #define PCM_SAMPLE_RATE             16000
 #define PCM_WIDTH                   16
 #define BLOCK_COUNT                 4
-#define PCM_BLOCK_SIZE              512
+#define PCM_BLOCK_SIZE              320
 
 /* IMU config */
 #define G_VALUE                     9.80665f

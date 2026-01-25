@@ -14,8 +14,8 @@ struct k_event app_events;
 K_THREAD_STACK_DEFINE(ble_stack, 1024);
 static struct k_thread ble_thread_data;
 
-K_MSGQ_DEFINE(audio_queue, sizeof(adpcm_packet_t), 8, 4);
-K_MSGQ_DEFINE(imu_queue, sizeof(imu_packet_t), 8, 4);
+K_MSGQ_DEFINE(audio_queue, sizeof(adpcm_packet_t), 32, 4);
+K_MSGQ_DEFINE(imu_queue, sizeof(imu_packet_t), 16, 4);
 
 /* Thread entry: legge dalla coda ADPCM e invia BLE notify */
 static void ble_thread(void *a, void *b, void *c)
