@@ -6,6 +6,7 @@
 #include "audio/audio.h"
 #include "adpcm/adpcm.h"
 #include "imu/imu.h"
+#include "led/led.h"
 
 LOG_MODULE_REGISTER(main);
 
@@ -43,6 +44,8 @@ static void ble_thread(void *a, void *b, void *c)
 int main(void)
 {
     k_event_init(&app_events);
+    led_init();
+    led_set_mode(LED_MODE_HEARTBEAT);
 
     uint32_t events = 0;
     int err;
@@ -89,12 +92,14 @@ int main(void)
 
         if (events & EVT_BT_CONNECTED)
         {
+            led_set_mode(LED_MODE_CONNECTED);
             LOG_INF("CONNECTED");
         }
 
         if (events & EVT_BT_DISCONNECTED)
         {
             LOG_INF("DISCONNECTED");
+            led_set_mode(LED_MODE_HEARTBEAT);
             ble_adv_start();
         }
 
@@ -107,6 +112,7 @@ int main(void)
         if (events & EVT_BT_SUB_CHAR_AUDIO)
         {
             LOG_INF("SUB AUDIO");
+            led_set_mode(LED_MODE_LISTENING);
             k_event_set(&app_events, EVT_AUDIO_START);
         }
 
@@ -119,6 +125,7 @@ int main(void)
         if (events & EVT_BT_UNSUB_CHAR_AUDIO)
         {
             LOG_INF("UNSUB AUDIO");
+            led_set_mode(LED_MODE_OFF);
             k_event_clear(&app_events, EVT_AUDIO_START);
         }
 

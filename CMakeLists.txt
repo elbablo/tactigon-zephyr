@@ -10,6 +10,7 @@ target_sources(
     src/adpcm/adpcm.c
     src/imu/imu.c
     src/fusion/madgwick.c
+    src/led/led.c
 )
 
 target_include_directories(app PRIVATE

@@ -7,6 +7,7 @@
 #define EVT_BT_UNSUB_CHAR_AUDIO     BIT(5)
 #define EVT_AUDIO_START             BIT(6)
 #define EVT_IMU_START               BIT(7)
+#define EVT_LED_CONNECTED           BIT(8)
 
 #define EVT_BT_ALL ( \
     EVT_BT_CONNECTED | EVT_BT_DISCONNECTED | \
