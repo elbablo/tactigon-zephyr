@@ -87,14 +87,13 @@ static int imu_wakeup_config(bool enable)
         {LSM6DSL_INT1_CTRL, 0x00},
         {LSM6DSL_CTRL1_XL, 0x20},                          /* 26 Hz, +/-2g */
         {LSM6DSL_WAKE_UP_THS, IMU_WAKEUP_THS & 0x3F},
-        {LSM6DSL_WAKE_UP_DUR, 0x00},
+        {LSM6DSL_WAKE_UP_DUR, (IMU_WAKEUP_DUR & 0x03) << 5}, /* WAKE_DUR[1:0] */
         {LSM6DSL_TAP_CFG, BIT(7) | BIT(0)},                /* INTERRUPTS_ENABLE | LIR */
         {LSM6DSL_MD1_CFG, BIT(5)},                         /* INT1_WU */
     }, off[] = {
         {LSM6DSL_MD1_CFG, 0x00},
         {LSM6DSL_TAP_CFG, 0x00},
         {LSM6DSL_INT1_CTRL, BIT(1) | BIT(0)},              /* DRDY_G | DRDY_XL */
-        {LSM6DSL_CTRL1_XL, 0x00},
     };
     const size_t n = enable ? ARRAY_SIZE(on) : ARRAY_SIZE(off);
     uint8_t src;
@@ -119,6 +118,19 @@ static int imu_wakeup_config(bool enable)
     return 0;
 }
 
+/* Idle: gyro spento, accel sempre attivo a 26 Hz cosi' lo slope filter del
+ * wake-up resta assestato e non serve riaccendere/attendere prima dello sleep. */
+static void imu_idle(void)
+{
+    const struct sensor_value odr_off = {.val1 = 0, .val2 = 0};
+    const struct sensor_value odr_idle = {.val1 = 26, .val2 = 0};
+
+    sensor_attr_set(imu_dev, SENSOR_CHAN_ACCEL_XYZ, SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_idle);
+    sensor_attr_set(imu_dev, SENSOR_CHAN_GYRO_XYZ, SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_off);
+    sensor_trigger_set(imu_dev, &trig_acc, NULL);
+    sensor_trigger_set(imu_dev, &trig_gyro, NULL);
+}
+
 int imu_arm_wakeup(void)
 {
     uint8_t src;
@@ -133,10 +145,11 @@ int imu_arm_wakeup(void)
         return err;
     }
 
-    /* Lascia assestare lo slope filter, poi rilascia un eventuale latch spurio */
-    k_sleep(K_MSEC(200));
+    /* L'accel era gia' attivo: il filtro e' assestato. Svuoto un eventuale
+     * latch residuo e, dopo un campione (26 Hz ~ 38 ms), verifico INT1. */
     err = i2c_reg_read_byte_dt(&imu_i2c, LSM6DSL_WAKE_UP_SRC, &src);
-    if (err || gpio_pin_get_dt(&imu_int1) > 0)
+    k_sleep(K_MSEC(50));
+    if (err || gpio_pin_get_dt(&imu_int1) != 0)
     {
         LOG_WRN("IMU in movimento, sleep annullato");
         imu_wakeup_config(false);
@@ -160,10 +173,7 @@ int imu_init()
         return -ENODEV;
     }
 
-    sensor_attr_set(imu_dev, SENSOR_CHAN_ACCEL_XYZ, SENSOR_ATTR_SAMPLING_FREQUENCY, &odr);
-    sensor_attr_set(imu_dev, SENSOR_CHAN_GYRO_XYZ, SENSOR_ATTR_SAMPLING_FREQUENCY, &odr);
-    sensor_trigger_set(imu_dev, &trig_acc, NULL);
-    sensor_trigger_set(imu_dev, &trig_gyro, NULL);
+    imu_idle();
 
     /* Dopo un risveglio da System OFF l'IMU conserva la config di wake-up
      * (INT1 latched alto): la azzera e ripristina il data-ready su INT1. */
@@ -197,12 +207,7 @@ void imu_stop(void)
 {
     // k_timer_stop(&imu_state_timer);
     // LOG_INF("Stopped state timer");
-    odr.val1 = 0;
-    odr.val2 = 0;
-    sensor_attr_set(imu_dev, SENSOR_CHAN_ACCEL_XYZ, SENSOR_ATTR_SAMPLING_FREQUENCY, &odr);
-    sensor_attr_set(imu_dev, SENSOR_CHAN_GYRO_XYZ, SENSOR_ATTR_SAMPLING_FREQUENCY, &odr);
-    sensor_trigger_set(imu_dev, &trig_acc, NULL);
-    sensor_trigger_set(imu_dev, &trig_gyro, NULL);
+    imu_idle();
 
     k_timer_stop(&imu_ble_timer);
     LOG_INF("Stopped ble timer");

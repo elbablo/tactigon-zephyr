@@ -31,7 +31,8 @@
 #define FUSION_REFRESH_FREQ         104.0f
 #define FUSION_BETA                 0.08f
 #define M_PI                        3.14159265358979323846
-#define IMU_WAKEUP_THS              4   /* soglia wake-up: 4 * 31.25 mg (+/-2g) = 125 mg */
+#define IMU_WAKEUP_THS              8   /* soglia wake-up: 8 * 31.25 mg (+/-2g) = 250 mg */
+#define IMU_WAKEUP_DUR              2   /* campioni consecutivi sopra soglia (0-3, 1 LSB = 38 ms a 26 Hz): filtra urti brevi sul tavolo */
 
 /* Sleep config */
 #define INACTIVITY_TIMEOUT          K_SECONDS(60)
