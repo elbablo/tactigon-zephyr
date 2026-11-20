@@ -1,8 +1,26 @@
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/gpio.h>
+#include <soc.h>
+#include <hal/nrf_gpio.h>
+
 #include "imu/imu.h"
 
 LOG_MODULE_REGISTER(imu);
 
+#define IMU_NODE DT_COMPAT_GET_ANY_STATUS_OKAY(st_lsm6dsl)
+
+/* Registri LSM6DSL non esposti dal driver Zephyr */
+#define LSM6DSL_INT1_CTRL     0x0D
+#define LSM6DSL_CTRL1_XL      0x10
+#define LSM6DSL_WAKE_UP_SRC   0x1B
+#define LSM6DSL_TAP_CFG       0x58
+#define LSM6DSL_WAKE_UP_THS   0x5B
+#define LSM6DSL_WAKE_UP_DUR   0x5C
+#define LSM6DSL_MD1_CFG       0x5E
+
 static const struct device *imu_dev = DEVICE_DT_GET_ONE(st_lsm6dsl);
+static const struct i2c_dt_spec imu_i2c = I2C_DT_SPEC_GET(IMU_NODE);
+static const struct gpio_dt_spec imu_int1 = GPIO_DT_SPEC_GET(IMU_NODE, irq_gpios);
 static madgwick_t fusion;
 struct k_timer imu_ble_timer;
 struct imu_state imu_state;
@@ -51,6 +69,89 @@ void imu_data_ready_cb(const struct device *dev, const struct sensor_trigger *tr
     k_mutex_unlock(&imu_mutex);
 }
 
+/*
+ * Il driver Zephyr usa INT1 solo per DATA_READY (trigger_set asserisce
+ * SENSOR_TRIG_DATA_READY) e possiede il pin. Il wake-up da movimento va quindi
+ * configurato scrivendo direttamente i registri.
+ *
+ * enable=true : accel a 26 Hz, wake-up (slope filter) latched instradato su INT1,
+ *               data-ready disabilitato su INT1.
+ * enable=false: wake-up spento, data-ready su INT1 ripristinato, latch azzerato.
+ */
+static int imu_wakeup_config(bool enable)
+{
+    const struct {
+        uint8_t reg;
+        uint8_t val;
+    } on[] = {
+        {LSM6DSL_INT1_CTRL, 0x00},
+        {LSM6DSL_CTRL1_XL, 0x20},                          /* 26 Hz, +/-2g */
+        {LSM6DSL_WAKE_UP_THS, IMU_WAKEUP_THS & 0x3F},
+        {LSM6DSL_WAKE_UP_DUR, 0x00},
+        {LSM6DSL_TAP_CFG, BIT(7) | BIT(0)},                /* INTERRUPTS_ENABLE | LIR */
+        {LSM6DSL_MD1_CFG, BIT(5)},                         /* INT1_WU */
+    }, off[] = {
+        {LSM6DSL_MD1_CFG, 0x00},
+        {LSM6DSL_TAP_CFG, 0x00},
+        {LSM6DSL_INT1_CTRL, BIT(1) | BIT(0)},              /* DRDY_G | DRDY_XL */
+        {LSM6DSL_CTRL1_XL, 0x00},
+    };
+    const size_t n = enable ? ARRAY_SIZE(on) : ARRAY_SIZE(off);
+    uint8_t src;
+    int err;
+
+    for (size_t i = 0; i < n; i++)
+    {
+        err = i2c_reg_write_byte_dt(&imu_i2c, enable ? on[i].reg : off[i].reg,
+                                    enable ? on[i].val : off[i].val);
+        if (err)
+        {
+            LOG_ERR("IMU reg write failed (%d)", err);
+            return err;
+        }
+    }
+
+    if (!enable)
+    {
+        /* La lettura di WAKE_UP_SRC rilascia il latch di INT1 */
+        return i2c_reg_read_byte_dt(&imu_i2c, LSM6DSL_WAKE_UP_SRC, &src);
+    }
+    return 0;
+}
+
+int imu_arm_wakeup(void)
+{
+    uint8_t src;
+    int err;
+
+    imu_stop();
+
+    err = imu_wakeup_config(true);
+    if (err)
+    {
+        imu_wakeup_config(false);
+        return err;
+    }
+
+    /* Lascia assestare lo slope filter, poi rilascia un eventuale latch spurio */
+    k_sleep(K_MSEC(200));
+    err = i2c_reg_read_byte_dt(&imu_i2c, LSM6DSL_WAKE_UP_SRC, &src);
+    if (err || gpio_pin_get_dt(&imu_int1) > 0)
+    {
+        LOG_WRN("IMU in movimento, sleep annullato");
+        imu_wakeup_config(false);
+        return -EBUSY;
+    }
+
+    /* Il driver ha lasciato il pin con interrupt disabilitato (trigger NULL).
+     * Il wake da System OFF richiede SENSE sul pin: lo imposto via HAL nRF,
+     * il GPIO Zephyr non e' coinvolto. */
+    nrf_gpio_cfg_sense_input(NRF_DT_GPIOS_TO_PSEL(IMU_NODE, irq_gpios),
+                             NRF_GPIO_PIN_NOPULL,
+                             NRF_GPIO_PIN_SENSE_HIGH);
+    return 0;
+}
+
 int imu_init()
 {
     if (!device_is_ready(imu_dev))
@@ -63,6 +164,10 @@ int imu_init()
     sensor_attr_set(imu_dev, SENSOR_CHAN_GYRO_XYZ, SENSOR_ATTR_SAMPLING_FREQUENCY, &odr);
     sensor_trigger_set(imu_dev, &trig_acc, NULL);
     sensor_trigger_set(imu_dev, &trig_gyro, NULL);
+
+    /* Dopo un risveglio da System OFF l'IMU conserva la config di wake-up
+     * (INT1 latched alto): la azzera e ripristina il data-ready su INT1. */
+    imu_wakeup_config(false);
 
     madgwick_init(&fusion, FUSION_REFRESH_FREQ, FUSION_BETA);
 

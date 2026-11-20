@@ -9,6 +9,7 @@
 #include "config.h"
 
 void reset_sleep(void);
+void inactivity_stop(void);
 void inactivity_init(void);
 
 #endif

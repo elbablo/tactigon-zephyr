@@ -34,6 +34,7 @@ typedef struct imu_packet imu_packet_t;
 int imu_init(void);
 void imu_start(void);
 void imu_stop(void);
+int imu_arm_wakeup(void);
 // void imu_state_cb(struct k_timer *timer_id);
 void imu_ble_cb(struct k_timer *timer_id);
 

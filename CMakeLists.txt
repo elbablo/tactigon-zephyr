@@ -11,6 +11,7 @@ target_sources(
     src/imu/imu.c
     src/fusion/madgwick.c
     src/led/led.c
+    src/sleep/sleep.c
 )
 
 target_include_directories(app PRIVATE

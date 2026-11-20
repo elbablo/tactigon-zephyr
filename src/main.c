@@ -7,6 +7,7 @@
 #include "adpcm/adpcm.h"
 #include "imu/imu.h"
 #include "led/led.h"
+#include "sleep/sleep.h"
 
 LOG_MODULE_REGISTER(main);
 
@@ -81,6 +82,8 @@ int main(void)
                 0,
                 K_NO_WAIT);
 
+    inactivity_init();
+
     while (1)
     {
 
@@ -92,6 +95,7 @@ int main(void)
 
         if (events & EVT_BT_CONNECTED)
         {
+            inactivity_stop();
             led_set_mode(LED_MODE_CONNECTED);
             LOG_INF("CONNECTED");
         }
@@ -100,6 +104,7 @@ int main(void)
         {
             LOG_INF("DISCONNECTED");
             led_set_mode(LED_MODE_HEARTBEAT);
+            reset_sleep();
             ble_adv_start();
         }
 

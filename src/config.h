@@ -31,3 +31,7 @@
 #define FUSION_REFRESH_FREQ         104.0f
 #define FUSION_BETA                 0.08f
 #define M_PI                        3.14159265358979323846
+#define IMU_WAKEUP_THS              4   /* soglia wake-up: 4 * 31.25 mg (+/-2g) = 125 mg */
+
+/* Sleep config */
+#define INACTIVITY_TIMEOUT          K_SECONDS(60)
