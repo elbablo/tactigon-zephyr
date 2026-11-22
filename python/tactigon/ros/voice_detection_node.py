@@ -18,7 +18,7 @@ class ActivityDetectionNode(Node):
     """
 
     def __init__(self):
-        super().__init__("activity_detection_node")
+        super().__init__("voice_detection_node")
         self.declare_parameter("aggressiveness", 2)
         self.declare_parameter("window_ms", 600)
         self.declare_parameter("start_ratio", 0.6)

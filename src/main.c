@@ -117,7 +117,7 @@ int main(void)
         if (events & EVT_BT_SUB_CHAR_AUDIO)
         {
             LOG_INF("SUB AUDIO");
-            led_set_mode(LED_MODE_LISTENING);
+            // led_set_mode(LED_MODE_CONNECTED);
             k_event_set(&app_events, EVT_AUDIO_START);
         }
 

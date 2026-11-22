@@ -33,6 +33,7 @@ class TranscribeNode(Node):
         self._final_pub = self.create_publisher(String, "transcription", TEXT_QOS)
 
         language = self.get_parameter("language").value
+        self.get_logger().info(f"Language: {language}") 
         self.get_logger().info("Loading Whistle model...")
         self._transcriber = LiveTranscriber(
             weights=self.get_parameter("weights").value or None,

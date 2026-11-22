@@ -1,27 +1,27 @@
-"""Launch the three nodes with the project venv.
+"""Launch the three nodes (activate the project venv first).
 
-  source /opt/ros/jazzy/setup.bash
-  ros2 launch python/launch/tactigon.launch.py address:=F3:5D:DF:89:26:7B language:=it
+  source /opt/vulcanexus/jazzy/setup.bash
+  source .venv/bin/activate
+  cd python && colcon build --symlink-install && source install/setup.bash
+  ros2 launch tactigon tactigon.launch.py address:=F3:5D:DF:89:26:7B language:=it
 """
-import os
-
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
-PYTHON_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-VENV_PYTHON = os.path.join(PYTHON_DIR, "..", ".venv", "bin", "python")
 NS = "tactigon"
 
 
-def node(module: str, name: str, params: dict) -> ExecuteProcess:
-    ros_args = ["--ros-args", "-r", f"__ns:=/{NS}", "-r", f"__node:={name}"]
-    for key, value in params.items():
-        ros_args += ["-p", [f"{key}:=", value]]
-    return ExecuteProcess(
-        cmd=[VENV_PYTHON, "-m", f"tactigon.ros.{module}", *ros_args],
-        cwd=PYTHON_DIR,
+def node(executable: str, params: dict) -> Node:
+    return Node(
+        package="tactigon",
+        executable=executable,
+        name=executable,
+        namespace=NS,
         output="screen",
+        parameters=[params],
     )
 
 
@@ -32,11 +32,15 @@ def generate_launch_description():
         DeclareLaunchArgument("window_ms", default_value="600"),
         DeclareLaunchArgument("start_ratio", default_value="0.6"),
         DeclareLaunchArgument("end_ratio", default_value="0.15"),
-        node("ble_node", "ble_node", {"address": LaunchConfiguration("address")}),
-        node("activity_detection_node", "activity_detection_node", {
-            "window_ms": LaunchConfiguration("window_ms"),
-            "start_ratio": LaunchConfiguration("start_ratio"),
-            "end_ratio": LaunchConfiguration("end_ratio"),
+        node("ble_node", {
+            "address": ParameterValue(LaunchConfiguration("address"), value_type=str),
         }),
-        node("transcribe_node", "transcribe_node", {"language": LaunchConfiguration("language")}),
+        node("voice_detection_node", {
+            "window_ms": ParameterValue(LaunchConfiguration("window_ms"), value_type=int),
+            "start_ratio": ParameterValue(LaunchConfiguration("start_ratio"), value_type=float),
+            "end_ratio": ParameterValue(LaunchConfiguration("end_ratio"), value_type=float),
+        }),
+        node("transcribe_node", {
+            "language": ParameterValue(LaunchConfiguration("language"), value_type=str),
+        }),
     ])

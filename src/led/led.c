@@ -56,19 +56,7 @@ static void effect_heartbeat(void)
 
 static void effect_connected(void)
 {
-    static uint8_t count;
-    static int64_t t0;
-
-    if (k_uptime_get() - t0 < 150) return;
-    t0 = k_uptime_get();
-
-    if (count < 4) {
-        (count % 2 == 0) ? led_on(&led_g) : led_off(&led_g);
-        count++;
-    } else {
-        led_off(&led_g);
-        count = 0;
-    }
+    led_on(&led_b);
 }
 
 static void effect_listening(void)
